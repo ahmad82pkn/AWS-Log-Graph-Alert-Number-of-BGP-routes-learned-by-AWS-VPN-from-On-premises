@@ -1,0 +1,55 @@
+Code: Feel free to change variable names to something more meaningful as per your needs
+
+
+import json
+import boto3
+import time
+
+def lambda_handler(event, context):
+    # TODO implement
+    millis=int(round(time.time()*1000))
+
+
+
+    myec2Sydney = boto3.client('ec2',region_name='ap-southeast-2')
+    clogs= boto3.client('logs',region_name='ap-southeast-2')
+
+
+
+
+    responseSydney=myec2Sydney.describe_vpn_connections(
+    )
+    for eachVpn in responseSydney['VpnConnections']:
+        for eachTunnelOfVpn in eachVpn['VgwTelemetry']:
+                AcceptedRouteCountSydney=str(eachTunnelOfVpn['AcceptedRouteCount'])
+                VpnConnectionIdSydney=str(eachVpn['VpnConnectionId'])
+                OutsideIPAddress=str(eachTunnelOfVpn['OutsideIpAddress'])
+                if eachTunnelOfVpn['Status']=="DOWN":
+                    AcceptedRouteCountSydney="0"
+                fullmessageSydney=AcceptedRouteCountSydney+" "+VpnConnectionIdSydney+" "+OutsideIPAddress
+                gettokenresponse=clogs.describe_log_streams(logGroupName='BGPLOGS',logStreamNamePrefix='VpnStream')
+                if "uploadSequenceToken" in gettokenresponse['logStreams'][0]:
+                        nexttoken=str(gettokenresponse['logStreams'][0]['uploadSequenceToken'])
+
+                        cresponse=clogs.put_log_events(
+                        logGroupName='BGPLOGS',
+                        logStreamName='VpnStream',
+                        logEvents=[
+                        {
+                                'timestamp':millis,
+                                'message':fullmessageSydney
+                                        },
+                        ],
+                        sequenceToken=nexttoken
+                        )
+                else:
+                        cresponse=clogs.put_log_events(
+                        logGroupName='BGPLOGS',
+                        logStreamName='VpnStream',
+                        logEvents=[
+                        {
+                                'timestamp':millis,
+                                'message':fullmessageSydney
+                                        },
+                        ],
+                        )
